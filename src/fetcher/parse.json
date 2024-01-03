@@ -1,0 +1,61 @@
+{
+    "table":
+    {
+        "general":
+        {
+            "tag": "table"
+        },
+        "investing":
+        {
+            "tag": "table",
+            "class": "js-table"
+        },
+        "zerodha":
+        {
+            "tag": "div",
+            "attr":
+            {
+                "class": "constituent-list-wrapper"
+            }
+        }
+    },
+    "header": {
+        "general": {
+            "tag": "thead"
+        }
+    },
+    "body": {
+        "general": {
+            "tag": "tbody"
+        }
+    },
+    "row":
+    {
+        "general":
+        {
+            "tag": "tr"
+        },
+        "zerodha":
+        {
+            "attr":
+            {
+                "class": "row"
+            }
+        }
+    },
+    "column":
+    {
+        "general":
+        {
+            "tag":
+            [
+                "td",
+                "th"
+            ]
+        },
+        "zerodha":
+        {
+            "class": "regex_col-"
+        }
+    }
+}
