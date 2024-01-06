@@ -160,8 +160,23 @@ def collect_inv_data():
             urlparts = urlparse(url)
             dframe.to_excel(writer, sheet_name=urlparts.path.rsplit("/", 1)[-1])
 
+
+def collect_equitypandit_data():
+    _id_name_inv = TableIDName()
+    data_fetch = DataFetch()
+
+    url = "https://www.equitypandit.com/list/nifty-50-companies"
+    with ExcelWriter("./investing_components1.xlsx", mode="w") as writer:
+        dframe = DataFetch().extract_table_from_url(url, tab_meta_id=_id_name_inv)
+        print(dframe)
+        urlparts = urlparse(url)
+        dframe.to_excel(writer, sheet_name=urlparts.path.rsplit("/", 1)[-1])
+
+
+
 if __name__ == "__main__":
-    collect_inv_data()
+    # collect_inv_data()
+    collect_equitypandit_data()
 
     _id_name_zer = TableIDName.initialize("zerodha", 0)
     _id_name_zer.head_id, _id_name_zer.body_id = "", ""
