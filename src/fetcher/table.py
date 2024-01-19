@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 import logging
 import re
@@ -7,7 +8,7 @@ from annotated_types import Ge, MinLen
 from bs4 import BeautifulSoup, ResultSet
 from pandas import ExcelWriter, DataFrame
 
-from src.util import JsonUtil
+from src.util import JsonUtil, LastWrite
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,39 @@ class DataFetch:
     def __init__(self):
         self.parse_config = JsonUtil.read(
             "parse.json", file_in_curr_dir=True, cur_file_path=__file__)
+        self.file_backup = "cache_download.json"
+        self.content_dict = {}
+
+    def getdata(self, url: Annotated[str, MinLen(5)],
+                tag: Annotated[str, MinLen(10)] | None = None) -> (bool, str):
+        lw = LastWrite(self.file_backup)
+
+        if not tag:
+            tag: str = hashlib.md5(url.encode()).hexdigest()
+
+        val: list | dict
+        _, val = lw.read_info(tag)
+
+        if val:
+            if isinstance(val, dict):
+                self.content_dict[tag] = val.values()[0]
+            else:
+                self.content_dict[tag] = val[0]
+            return self.content_dict[tag]
+
+        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel  Mac OS X 14_0) AppleWebKit/537.36 " \
+                                 "(KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"}
+        # Send an HTTP GET request to the URL
+        response: requests.Response = requests.get(url, headers=headers, timeout=10)
+
+        # Check if the request was successful (status code 200)
+        if response.status_code != 200 or len(response.content) < 50:
+            logger.warning("The url is incorrect  %s", url)
+            return False, None
+
+        self.content_dict[tag] = response.content
+        lw.write_info({tag: response.content})
+        return True, tag
 
     def getfindattr(self, bsoup: BeautifulSoup, type_tag: str, case_tag: str,
                     limit: Annotated[int, Ge(1)] = 1) -> (bool, ResultSet):
@@ -83,17 +117,20 @@ class DataFetch:
         return True, res_set
 
     def extract_table_from_url(
-            self, url: str, tab_meta_id: TableIDName) -> DataFrame:
-        # Send an HTTP GET request to the URL
-        response = requests.get(url, timeout=10)
+            self, url: str, tab_meta_id: TableIDName) -> DataFrame | None:
 
-        # Check if the request was successful (status code 200)
-        if response.status_code != 200:
-            logger.warning("The url is incorrect  %s", url)
-            return None   # Return None if the request to retrieve the webpage fails
+        tag = hashlib.md5(url.encode()).hexdigest()
+        if tag not in self.content_dict:
+            ret, _tag = self.getdata(url, tag)
+            if not ret:
+                return None
+        else:
+            _tag = tag
+
+        html_content = self.content_dict[_tag]
 
         # Parse the HTML content using BeautifulSoup
-        soup = BeautifulSoup(response.content, 'html.parser')
+        soup = BeautifulSoup(html_content, 'html.parser')
 
         res_t, tables = self.getfindattr(
             soup, "table", tab_meta_id.table_id, tab_meta_id.table_elem_index+2)
@@ -111,7 +148,7 @@ class DataFetch:
         table = tables[tab_meta_id.table_elem_index]
         header_row = []
         res_th, theader = self.getfindattr(table, "header", tab_meta_id.head_id, 2)
-        if not res_t:
+        if not res_t or not theader:
             logger.warning("The header is missing")
         else:
             _res_thc, cells = self.getfindattr(theader[0], "column", tab_meta_id.col_id, 500)
@@ -119,7 +156,7 @@ class DataFetch:
             header_row = [cell.get_text(strip=True) for cell in cells]
 
         res_th, tbody = self.getfindattr(table, "body", tab_meta_id.body_id, 2)
-        if not res_t:
+        if not res_t or not tbody:
             logger.warning("The tbody is missing")
             _tbody = table
         else:
@@ -145,7 +182,6 @@ class DataFetch:
         return pdata   # Return the table as DataFrame
 
 
-
 def collect_inv_data():
     _id_name_inv = TableIDName()
     _id_name_inv.table_id = "investing"
@@ -163,6 +199,7 @@ def collect_inv_data():
 
 def collect_equitypandit_data():
     _id_name_inv = TableIDName()
+    _id_name_inv.table_id = "equitypandit"
     data_fetch = DataFetch()
 
     url = "https://www.equitypandit.com/list/nifty-50-companies"
@@ -171,7 +208,6 @@ def collect_equitypandit_data():
         print(dframe)
         urlparts = urlparse(url)
         dframe.to_excel(writer, sheet_name=urlparts.path.rsplit("/", 1)[-1])
-
 
 
 if __name__ == "__main__":

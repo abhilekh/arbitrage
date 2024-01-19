@@ -5,6 +5,10 @@
         {
             "tag": "table"
         },
+        "equitypandit": {
+            "tag": "table",
+            "class": "table"
+        },
         "investing":
         {
             "tag": "table",
